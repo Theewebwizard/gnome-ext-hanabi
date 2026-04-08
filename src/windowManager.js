@@ -148,7 +148,14 @@ class ManagedWindow {
 
 export class WindowManager {
     constructor() {
-        this._isX11 = !Meta.is_wayland_compositor();
+        // Feature detection: Use Meta.is_wayland_compositor if available (GNOME < 50)
+        // On GNOME 50+, the function was removed and X11 support was dropped
+        if (typeof Meta.is_wayland_compositor === 'function') {
+            this._isX11 = !Meta.is_wayland_compositor();
+        } else {
+            // GNOME 50+: X11 backend removed, assume Wayland
+            this._isX11 = false;
+        }
         this._windows = new Set();
         this._waylandClient = null;
     }
