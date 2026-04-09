@@ -96,45 +96,70 @@ export const LiveWallpaper = GObject.registerClass(
         }
 
         setPixelStep(width, height) {
-            this._roundedCornersEffect.setPixelStep([
-                1.0 / (width * this._monitorScale),
-                1.0 / (height * this._monitorScale),
-            ]);
+            try {
+                this._roundedCornersEffect.setPixelStep([
+                    1.0 / (width * this._monitorScale),
+                    1.0 / (height * this._monitorScale),
+                ]);
+            } catch (e) {
+                // Ignore if disposed
+            }
         }
 
         setRoundedClipRadius(radius) {
-            this._roundedCornersEffect.setClipRadius(
-                radius * this._monitorScale
-            );
+            try {
+                this._roundedCornersEffect.setClipRadius(
+                    radius * this._monitorScale
+                );
+            } catch (e) {
+                // Ignore if disposed
+            }
         }
 
         setRoundedClipBounds(x1, y1, x2, y2) {
-            this._roundedCornersEffect.setBounds(
-                [x1, y1, x2, y2].map(e => e * this._monitorScale)
-            );
+            try {
+                this._roundedCornersEffect.setBounds(
+                    [x1, y1, x2, y2].map(e => e * this._monitorScale)
+                );
+            } catch (e) {
+                // Ignore if disposed
+            }
         }
 
         _applyWallpaper() {
             logger.debug('Applying wallpaper...');
             const operation = () => {
-                const renderer = this._getRenderer();
-                if (renderer) {
-                    this._wallpaper = new Clutter.Clone({
-                        source: renderer,
-                        // The point around which the scaling and rotation transformations occur.
-                        pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
-                    });
-                    this._wallpaper.connect('destroy', () => {
-                        this._wallpaper = null;
-                    });
-                    this.add_child(this._wallpaper);
-                    this._fade();
-                    logger.debug('Wallpaper applied');
-                    // Stop the timeout.
+                try {
+                    // Guard check: throws if `this` object is already disposed.
+                    this.get_name();
+                } catch (e) {
+                    logger.debug('LiveWallpaper disposed, stopping wallpaper operation');
                     return false;
-                } else {
-                    // Keep waiting.
-                    return true;
+                }
+
+                try {
+                    const renderer = this._getRenderer();
+                    if (renderer) {
+                        this._wallpaper = new Clutter.Clone({
+                            source: renderer,
+                            // The point around which the scaling and rotation transformations occur.
+                            pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
+                        });
+                        this._wallpaper.connect('destroy', () => {
+                            this._wallpaper = null;
+                        });
+                        this.add_child(this._wallpaper);
+                        this._fade();
+                        logger.debug('Wallpaper applied');
+                        // Stop the timeout.
+                        return false;
+                    } else {
+                        // Keep waiting.
+                        return true;
+                    }
+                } catch (e) {
+                    logger.debug(`Could not apply wallpaper (possibly disposed): ${e}`);
+                    return false;
                 }
             };
 
@@ -176,11 +201,15 @@ export const LiveWallpaper = GObject.registerClass(
         }
 
         _fade(visible = true) {
-            this.ease({
-                opacity: visible ? 255 : 0,
-                duration: BACKGROUND_FADE_ANIMATION_TIME,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            });
+            try {
+                this.ease({
+                    opacity: visible ? 255 : 0,
+                    duration: BACKGROUND_FADE_ANIMATION_TIME,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                });
+            } catch (e) {
+                logger.debug(`Could not fade wallpaper (possibly disposed): ${e}`);
+            }
         }
     }
 );
