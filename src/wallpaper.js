@@ -52,6 +52,16 @@ export const LiveWallpaper = GObject.registerClass(
             this._metaBackgroundGroup = backgroundActor.get_parent();
             this._monitorIndex = backgroundActor.monitor;
 
+            this._isDisposed = false;
+            this._timeoutId = null;
+            this.connect('destroy', () => {
+                this._isDisposed = true;
+                if (this._timeoutId) {
+                    GLib.Source.remove(this._timeoutId);
+                    this._timeoutId = null;
+                }
+            });
+
             /**
              * _monitorScale is fractional scale factor
              * _monitorWidth and _monitorHeight are scaled resolution
@@ -96,6 +106,7 @@ export const LiveWallpaper = GObject.registerClass(
         }
 
         setPixelStep(width, height) {
+            if (this._isDisposed) return;
             try {
                 this._roundedCornersEffect.setPixelStep([
                     1.0 / (width * this._monitorScale),
@@ -107,6 +118,7 @@ export const LiveWallpaper = GObject.registerClass(
         }
 
         setRoundedClipRadius(radius) {
+            if (this._isDisposed) return;
             try {
                 this._roundedCornersEffect.setClipRadius(
                     radius * this._monitorScale
@@ -117,6 +129,7 @@ export const LiveWallpaper = GObject.registerClass(
         }
 
         setRoundedClipBounds(x1, y1, x2, y2) {
+            if (this._isDisposed) return;
             try {
                 this._roundedCornersEffect.setBounds(
                     [x1, y1, x2, y2].map(e => e * this._monitorScale)
@@ -129,10 +142,7 @@ export const LiveWallpaper = GObject.registerClass(
         _applyWallpaper() {
             logger.debug('Applying wallpaper...');
             const operation = () => {
-                try {
-                    // Guard check: throws if `this` object is already disposed.
-                    this.get_name();
-                } catch (e) {
+                if (this._isDisposed) {
                     logger.debug('LiveWallpaper disposed, stopping wallpaper operation');
                     return false;
                 }
@@ -164,8 +174,9 @@ export const LiveWallpaper = GObject.registerClass(
             };
 
             // Perform intial operation without timeout
-            if (operation())
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, operation);
+            if (operation()) {
+                this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, operation);
+            }
         }
 
         _getRenderer() {
@@ -201,6 +212,7 @@ export const LiveWallpaper = GObject.registerClass(
         }
 
         _fade(visible = true) {
+            if (this._isDisposed) return;
             try {
                 this.ease({
                     opacity: visible ? 255 : 0,

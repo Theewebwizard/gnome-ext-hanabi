@@ -87,6 +87,9 @@ export class GnomeShellOverride {
 
                     this.videoActor.connect('destroy', actor => {
                         thisRef._wallpaperActors.delete(actor);
+                        if (this.videoActor === actor) {
+                            this.videoActor = null;
+                        }
                     });
 
                     return backgroundActor;
@@ -108,7 +111,9 @@ export class GnomeShellOverride {
                     const cornerRadius = scaleFactor * BACKGROUND_CORNER_RADIUS_PIXELS;
 
                     const radius = Util.lerp(0, cornerRadius, this._stateAdjustment.value);
-                    this._bgManager.videoActor.setRoundedClipRadius(radius);
+                    if (this._bgManager.videoActor) {
+                        this._bgManager.videoActor.setRoundedClipRadius(radius);
+                    }
                 };
             }
         );
