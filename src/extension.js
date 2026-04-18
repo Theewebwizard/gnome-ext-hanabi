@@ -53,7 +53,7 @@ export default class HanabiExtension extends Extension {
         if (this.settings.get_boolean('show-panel-menu'))
             this.panelMenu.enable();
 
-        this.settings.connect('changed::show-panel-menu', () => {
+        this._showPanelMenuChangedId = this.settings.connect('changed::show-panel-menu', () => {
             if (this.settings.get_boolean('show-panel-menu'))
                 this.panelMenu.enable();
             else
@@ -181,6 +181,11 @@ export default class HanabiExtension extends Extension {
     }
 
     disable() {
+        if (this._showPanelMenuChangedId) {
+            this.settings.disconnect(this._showPanelMenuChangedId);
+            this._showPanelMenuChangedId = null;
+        }
+
         this.settings = null;
         this.panelMenu.disable();
         Main.sessionMode.hasOverview = this.old_hasOverview;
