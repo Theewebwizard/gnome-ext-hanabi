@@ -91,9 +91,9 @@ export const LiveWallpaper = GObject.registerClass(
             backgroundActor.add_child(this);
             const updateSize = () => {
                 if (this._isDisposed) return;
-                this.set_size(backgroundActor.width, backgroundActor.height);
+                this.set_size(Math.round(backgroundActor.width), Math.round(backgroundActor.height));
                 if (this._wallpaper)
-                    this._wallpaper.set_size(this.width, this.height);
+                    this._wallpaper.set_size(Math.round(this.width), Math.round(this.height));
             };
             this._sizeChangedId = backgroundActor.connect('notify::size', updateSize);
             updateSize();
