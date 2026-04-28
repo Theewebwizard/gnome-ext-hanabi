@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1a1a;
+            color: white;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #box {
+            width: 100px;
+            height: 100px;
+            background: #ff4757;
+            border-radius: 12px;
+            transition: transform 0.1s;
+        }
+        #box:hover {
+            background: #2ed573;
+            transform: scale(1.2);
+        }
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Move mouse or click the box!</div>
+    <div id="box"></div>
+    <div id="visualizer"></div>
+    <script>
+        const box = document.getElementById('box');
+        const status = document.getElementById('status');
+        const visualizer = document.getElementById('visualizer');
+        
+        // Create bars for visualizer
+        const bars = [];
+        for (let i = 0; i < 64; i++) {
+            const bar = document.createElement('div');
+            bar.style.width = '4px';
+            bar.style.height = '10px';
+            bar.style.background = '#00d2ff';
+            bar.style.margin = '1px';
+            bar.style.display = 'inline-block';
+            visualizer.appendChild(bar);
+            bars.push(bar);
+        }
+        visualizer.style.position = 'absolute';
+        visualizer.style.bottom = '20px';
+        visualizer.style.display = 'flex';
+        visualizer.style.alignItems = 'flex-end';
+
+        // Wallpaper Engine Audio Listener
+        window.wallpaperRegisterAudioListener((audioData) => {
+            for (let i = 0; i < bars.length; i++) {
+                const val = audioData[i] || 0;
+                bars[i].style.height = (val * 100 + 10) + 'px';
+                bars[i].style.background = `hsl(${200 + val * 100}, 100%, 50%)`;
+            }
+        });
+        
+        box.addEventListener('mousedown', () => {
+            box.style.transform = 'scale(0.8)';
+            status.textContent = 'Box clicked!';
+        });
+        
+        box.addEventListener('mouseup', () => {
+            box.style.transform = 'scale(1.2)';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            // status.textContent = `Mouse at: ${e.clientX}, ${e.clientY}`;
+        });
+    </script>
+</body>
+</html>
