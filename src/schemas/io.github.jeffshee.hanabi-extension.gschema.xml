@@ -127,5 +127,11 @@
             <summary>Show Panel Menu</summary>
             <description>Show the panel menu for the extension</description>
         </key>
+
+        <key name="interactive" type="b">
+            <default>false</default>
+            <summary>Interactive Mode</summary>
+            <description>Enable mouse interaction for web wallpapers</description>
+        </key>
     </schema>
 </schemalist>

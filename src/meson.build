@@ -32,6 +32,7 @@ extra_sources = [
 
 renderer = [
   'renderer/renderer.js',
+  'renderer/web_renderer.js',
   'renderer/stylesheet.css',
 ]
 

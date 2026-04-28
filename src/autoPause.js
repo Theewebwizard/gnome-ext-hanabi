@@ -328,7 +328,7 @@ const PauseOnBatteryModule = GObject.registerClass(
 
         enable() {
             this._upower.proxy.connect('g-properties-changed', (_proxy, properties) => {
-                let payload = properties.deep_unpack();
+                let payload = properties.recursiveUnpack();
                 if (!payload.hasOwnProperty('State') && !payload.hasOwnProperty('Percentage'))
                     return;
                 this._logger.debug(`State ${payload.State}, Percentage ${payload.Percentage}`);

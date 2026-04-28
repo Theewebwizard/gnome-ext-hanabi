@@ -95,6 +95,13 @@ export default class HanabiExtensionPreferences extends ExtensionPreferences {
             'enable-nvsl',
             _('Use new stateless NVIDIA decoders')
         );
+        prefsRowBoolean(
+            window,
+            experimentalGroup,
+            _('Interactive Mode'),
+            'interactive',
+            _('Enable mouse interaction for web wallpapers')
+        );
 
         /**
          * Developer
@@ -218,22 +225,46 @@ function prefsRowInt(
  */
 function prefsRowVideoPath(window, prefsGroup) {
     const settings = window._settings;
-    const title = _('Video Path');
+    const title = _('Video Path / URL');
     const key = 'video-path';
 
     let path = settings.get_string(key);
-    const row = new Adw.ActionRow({
+    const row = new Adw.EntryRow({
         title,
-        subtitle: `${path !== '' ? path : _('None')}`,
+        text: path,
     });
     prefsGroup.add(row);
+
+    // Update settings immediately when text changes
+    row.connect('notify::text', () => {
+        const newText = row.text;
+        if (settings.get_string(key) !== newText) {
+            settings.set_string(key, newText);
+        }
+    });
+    
+    // Also update when the setting changes externally
+    const changedId = settings.connect(`changed::${key}`, () => {
+        const sText = settings.get_string(key);
+        if (row.text !== sText) {
+            row.text = sText;
+        }
+    });
+
+    window.connect('destroy', () => {
+        settings.disconnect(changedId);
+    });
 
     /**
      * Video file chooser
      */
     function createDialog() {
         let fileFilter = new Gtk.FileFilter();
+        fileFilter.set_name(_('Wallpaper Files'));
         fileFilter.add_mime_type('video/*');
+        fileFilter.add_mime_type('text/html');
+        fileFilter.add_pattern('*.html');
+        fileFilter.add_pattern('*.htm');
 
         let fileChooser = new Gtk.FileChooserDialog({
             title: _('Open File'),
@@ -249,25 +280,25 @@ function prefsRowVideoPath(window, prefsGroup) {
             if (responseId === Gtk.ResponseType.ACCEPT) {
                 let _path = dialog.get_file().get_path();
                 settings.set_string(key, _path);
-                row.subtitle = `${_path !== '' ? _path : _('None')}`;
+                row.text = _path;
             }
             dialog.destroy();
         });
         return fileChooser;
     }
 
-    let button = new Adw.ButtonContent({
+    let button = new Gtk.Button({
         icon_name: 'document-open-symbolic',
-        label: _('Open'),
+        valign: Gtk.Align.CENTER,
+        css_classes: ['flat'],
     });
 
-    row.activatable_widget = button;
-    row.add_suffix(button);
-
-    row.connect('activated', () => {
+    button.connect('clicked', () => {
         let dialog = createDialog();
         dialog.show();
     });
+
+    row.add_suffix(button);
 }
 
 /**

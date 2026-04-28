@@ -16,6 +16,7 @@
  */
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
@@ -35,19 +36,11 @@ const BACKGROUND_FADE_ANIMATION_TIME = 1000;
 
 /**
  * The widget that holds the window preview of the renderer.
- */
+  */
 export const LiveWallpaper = GObject.registerClass(
-    class LiveWallpaper extends St.Widget {
-        constructor(backgroundActor) {
+    class LiveWallpaper extends Clutter.Actor {
+        constructor(backgroundActor, extension) {
             super({
-                layout_manager: new Clutter.BinLayout(),
-                width: backgroundActor.width,
-                height: backgroundActor.height,
-                // Layout manager will allocate extra space for the actor, if possible.
-                x_expand: true,
-                y_expand: true,
-                x_align: Clutter.ActorAlign.FILL,
-                y_align: Clutter.ActorAlign.FILL,
                 opacity: 0,
             });
             this._backgroundActor = backgroundActor;
@@ -56,15 +49,41 @@ export const LiveWallpaper = GObject.registerClass(
 
             this._isDisposed = false;
             this._timeoutId = null;
+
+            this._settings = extension.settings;
+            this._rendererProxy = extension.getPlaybackState()._renderer;
+
+            if (this._settings.get_boolean('interactive')) {
+                this.reactive = true;
+                // Disable graphics offload to prevent gbm_surface_lock_front_buffer errors
+                // This is especially important for multi-monitor / hybrid GPU setups
+                if ('allow_graphics_offload' in this) {
+                    this.allow_graphics_offload = false;
+                }
+                this.connect('button-press-event', (actor, event) => {
+                    this._onMouseEvent('mousedown', event);
+                    return Clutter.EVENT_PROPAGATE;
+                });
+                this.connect('button-release-event', (actor, event) => {
+                    this._onMouseEvent('mouseup', event);
+                    return Clutter.EVENT_PROPAGATE;
+                });
+                this.connect('motion-event', (actor, event) => {
+                    this._onMouseEvent('mousemove', event);
+                    return Clutter.EVENT_PROPAGATE;
+                });
+            }
+
             this.connect('destroy', () => {
                 this._isDisposed = true;
                 if (this._timeoutId) {
                     GLib.Source.remove(this._timeoutId);
                     this._timeoutId = null;
                 }
-                if (this._sizeChangedId) {
-                    backgroundActor.disconnect(this._sizeChangedId);
-                    this._sizeChangedId = null;
+                // Clear constraints and remove from parent to prevent GPU leaks
+                this.clear_constraints();
+                if (this.get_parent()) {
+                    this.get_parent().remove_child(this);
                 }
                 if (this._wallpaper) {
                     this._wallpaper.source = null;
@@ -73,12 +92,6 @@ export const LiveWallpaper = GObject.registerClass(
                 }
             });
 
-            /**
-             * _monitorScale is fractional scale factor
-             * _monitorWidth and _monitorHeight are scaled resolution
-             * e.g. if the physical reolution = (2240, 1400) and fractional scale factor = 1.25,
-             * then the scaled resolution would be (2240/1.25, 1400/1.25) = (1792, 1120).
-             */
             this._display = backgroundActor.meta_display;
             this._monitorScale = this._display.get_monitor_scale(
                 this._monitorIndex
@@ -88,39 +101,24 @@ export const LiveWallpaper = GObject.registerClass(
             this._monitorWidth = width;
             this._monitorHeight = height;
 
-            backgroundActor.add_child(this);
-            const updateSize = () => {
-                if (this._isDisposed) return;
-                this.set_size(Math.round(backgroundActor.width), Math.round(backgroundActor.height));
-                if (this._wallpaper)
-                    this._wallpaper.set_size(Math.round(this.width), Math.round(this.height));
-            };
-            this._sizeChangedId = backgroundActor.connect('notify::size', updateSize);
-            updateSize();
+            // Add as sibling above the static background, but inside the same group
+            this._metaBackgroundGroup.insert_child_above(this, backgroundActor);
+            
+            // Sync size and position perfectly with the background actor
+            this.add_constraint(new Clutter.BindConstraint({
+                source: backgroundActor,
+                coordinate: Clutter.BindCoordinate.ALL,
+            }));
 
             this._wallpaper = null;
             this._applyWallpaper();
 
             this._roundedCornersEffect =
                 new RoundedCornersEffect.RoundedCornersEffect();
-            // this._backgroundActor.add_effect(this._roundedCornersEffect);
-
+            
             this.setPixelStep(this._monitorWidth, this._monitorHeight);
             this.setRoundedClipRadius(0.0);
             this.setRoundedClipBounds(0, 0, this._monitorWidth, this._monitorHeight);
-
-            // FIXME: Bounds calculation is wrong if the layout isn't vanilla (with custom dock, panel, etc.), disabled for now.
-            // this.connect('notify::allocation', () => {
-            //     let heightOffset = this.height - this._metaBackgroundGroup.get_parent().height;
-            //     this._roundedCornersEffect.setBounds(
-            //         [
-            //             CUSTOM_BACKGROUND_BOUNDS_PADDING,
-            //             CUSTOM_BACKGROUND_BOUNDS_PADDING + heightOffset,
-            //             this.width,
-            //             this.height,
-            //         ].map(e => e * this._monitorScale)
-            //     );
-            // });
         }
 
         setPixelStep(width, height) {
@@ -211,9 +209,15 @@ export const LiveWallpaper = GObject.registerClass(
         _getRenderer() {
             let windowActors = global.get_window_actors(false);
 
-            const hanabiWindowActors = windowActors.filter(window =>
-                window.meta_window.title?.includes(applicationId)
-            );
+            const hanabiWindowActors = windowActors.filter(window => {
+                let title = window.meta_window.title || "";
+                return title.includes(applicationId);
+            });
+
+            if (hanabiWindowActors.length === 0) {
+                // Log only occasionally or on change to avoid spam
+                logger.debug(`Searching for renderer: ${applicationId}. Current windows: ${windowActors.map(w => w.meta_window.title).join(', ')}`);
+            }
 
             // Find renderer by `applicationId` and monitor index.
             // We use the monitor index from the backgroundActor dynamically to handle re-indexing.
@@ -239,6 +243,36 @@ export const LiveWallpaper = GObject.registerClass(
             } catch (e) {
                 logger.debug(`Could not fade wallpaper (possibly disposed): ${e}`);
             }
+        }
+
+        _onMouseEvent(type, event) {
+            if (!this._rendererProxy) return;
+            let [x, y] = event.get_coords();
+            logger.debug(`Mouse event: ${type} at (${x}, ${y}) for monitor ${this._monitorIndex}`);
+
+            // Throttle motion events to ~60fps (16.6ms) to avoid D-Bus bottleneck
+            if (type === 'mousemove') {
+                let now = GLib.get_monotonic_time();
+                if (this._lastMotionTime && (now - this._lastMotionTime) < 16666)
+                    return;
+                this._lastMotionTime = now;
+            }
+            let monitor = Main.layoutManager.monitors[this._monitorIndex];
+            
+            // global -> monitor-local
+            x -= monitor.x;
+            y -= monitor.y;
+
+            // In some environments, we might need to adjust for the monitor's scale factor
+            // if the renderer window is not matching the shell's logical scaling.
+            // But usually Clutter events and WebKit both work in logical pixels.
+
+            let button = 0;
+            if (type === 'mousedown' || type === 'mouseup') {
+                button = event.get_button();
+            }
+
+            this._rendererProxy.sendMouseEvent(type, x, y, button);
         }
     }
 );

@@ -93,11 +93,12 @@ export class GnomeShellOverride {
         return null;
     }
 
-    enable() {
+    enable(extension) {
         /**
          * Live wallpaper
          */
-        let thisRef = this;
+        let overrideRef = this;
+        let extRef = extension;
 
         this._injectionManager.overrideMethod(Background.BackgroundManager.prototype, '_createBackgroundActor',
             originalMethod => {
@@ -105,11 +106,11 @@ export class GnomeShellOverride {
                     const backgroundActor = originalMethod.call(this);
 
                     // We need to pass radius to actors, so save a ref in bgManager.
-                    this.videoActor = new Wallpaper.LiveWallpaper(backgroundActor);
-                    thisRef._wallpaperActors.add(this.videoActor);
+                    this.videoActor = new Wallpaper.LiveWallpaper(backgroundActor, extRef);
+                    overrideRef._wallpaperActors.add(this.videoActor);
 
                     this.videoActor.connect('destroy', actor => {
-                        thisRef._wallpaperActors.delete(actor);
+                        overrideRef._wallpaperActors.delete(actor);
                         if (this.videoActor === actor) {
                             this.videoActor = null;
                         }

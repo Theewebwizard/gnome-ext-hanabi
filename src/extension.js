@@ -104,7 +104,7 @@ export default class HanabiExtension extends Extension {
     }
 
     innerEnable() {
-        this.override.enable();
+        this.override.enable(this);
         this.manager.enable();
         this.autoPause.enable();
 
@@ -142,11 +142,15 @@ export default class HanabiExtension extends Extension {
 
         this.reloadTime = 100;
         const argv = [];
+
+        let isWeb = videoPath.startsWith('http') || videoPath.endsWith('.html') || videoPath.endsWith('.htm');
+        let rendererScript = isWeb ? 'web_renderer.js' : 'renderer.js';
+
         argv.push(
             GLib.build_filenamev([
                 this.path,
                 'renderer',
-                'renderer.js',
+                rendererScript,
             ])
         );
         // TODO: recheck `-P` argument

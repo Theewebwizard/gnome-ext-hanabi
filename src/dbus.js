@@ -34,6 +34,12 @@ export class RendererWrapper {
             <interface name="io.github.jeffshee.HanabiRenderer">
                 <method name="setPlay"/>
                 <method name="setPause"/>
+                <method name="sendMouseEvent">
+                    <arg name="type" type="s" direction="in"/>
+                    <arg name="x" type="d" direction="in"/>
+                    <arg name="y" type="d" direction="in"/>
+                    <arg name="button" type="u" direction="in"/>
+                </method>
                 <property name="isPlaying" type="b" access="read"/>
                 <signal name="isPlayingChanged">
                     <arg name="isPlaying" type="b"/>
@@ -59,6 +65,14 @@ export class RendererWrapper {
             await this.proxy.setPauseAsync();
         } catch (e) {
             this._logger.warn(e);
+        }
+    }
+
+    async sendMouseEvent(type, x, y, button) {
+        try {
+            await this.proxy.sendMouseEventAsync(type, x, y, button);
+        } catch (e) {
+            // Ignore if method not found (e.g. video renderer)
         }
     }
 }
